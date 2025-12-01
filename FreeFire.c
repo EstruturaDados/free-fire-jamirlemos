@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <locale.h>
 
 #define MAX_ITENS 10   // Capacidade da mochila
 
@@ -103,6 +104,7 @@ void listarItens(const Item mochila[]) {
 // ============================================================================
 int main() {
 
+    setlocale(LC_ALL, "pt_BR.UTF-8");
     Item mochila[MAX_ITENS] = {0};   // inicializa todos como vazios
 
     int opcao;
