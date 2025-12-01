@@ -41,7 +41,7 @@ void adicionarItem(Item mochila[]) {
         }
     }
 
-    printf("\n⚠ A mochila está cheia! Não é possível adicionar mais itens.\n");
+    printf("\n A mochila está cheia! Não é possível adicionar mais itens.\n");
 }
 
 // ============================================================================
