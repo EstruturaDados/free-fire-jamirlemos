@@ -1,160 +1,255 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <locale.h>
 
-#define MAX_ITENS 10   // Capacidade máxima da mochila
+#define MAX_ITENS 10
 
 // ============================================================================
-// ESTRUTURA DO ITEM
+// ENUM: Critérios de ordenação
+// ============================================================================
+typedef enum {
+    ORDENAR_NOME = 1,
+    ORDENAR_TIPO = 2,
+    ORDENAR_PRIORIDADE = 3
+} CriterioOrdenacao;
+
+// ============================================================================
+// STRUCT DO ITEM
 // ============================================================================
 typedef struct {
-    char nome[30];      // Nome do item (ex: "Medkit")
-    char tipo[20];      // Tipo do item (ex: "Cura", "Arma", "Suprimento")
-    int quantidade;     // Quantidade do item
-    int ativo;          // Indica se o slot está preenchido (1) ou não (0)
+    char nome[30];
+    char tipo[20];
+    int quantidade;
+    int prioridade;     // NOVO: de 1 a 5
+    int ativo;
 } Item;
 
 // ============================================================================
 // FUNÇÃO: Adicionar item
 // ============================================================================
-void adicionarItem(Item mochila[]) {
+void adicionarItem(Item mochila[], bool *ordenadaPorNome) {
     int i;
 
-    // Procura um slot vazio
     for (i = 0; i < MAX_ITENS; i++) {
-        if (mochila[i].ativo == 0) {
+        if (!mochila[i].ativo) {
 
             printf("\n--- ADICIONAR ITEM ---\n");
 
-            printf("Nome do item: ");
+            printf("Nome: ");
             scanf("%s", mochila[i].nome);
 
-            printf("Tipo do item: ");
+            printf("Tipo: ");
             scanf("%s", mochila[i].tipo);
 
             printf("Quantidade: ");
             scanf("%d", &mochila[i].quantidade);
 
-            mochila[i].ativo = 1; // Marca o item como ativo
+            do {
+                printf("Prioridade (1 a 5): ");
+                scanf("%d", &mochila[i].prioridade);
+            } while (mochila[i].prioridade < 1 || mochila[i].prioridade > 5);
+
+            mochila[i].ativo = 1;
+
+            *ordenadaPorNome = false;  // Inserção quebra ordenação
             printf("\nItem adicionado com sucesso!\n");
             return;
         }
     }
 
-    printf("\nA mochila está cheia. Não é possível adicionar mais itens.\n");
+    printf("\nMochila cheia! Não é possível adicionar mais itens.\n");
 }
 
 // ============================================================================
 // FUNÇÃO: Remover item
 // ============================================================================
-void removerItem(Item mochila[]) {
+void removerItem(Item mochila[], bool *ordenadaPorNome) {
     char nomeRemover[30];
     int i, encontrado = 0;
 
     printf("\n--- REMOVER ITEM ---\n");
-    printf("Digite o nome do item que deseja remover: ");
+    printf("Nome do item: ");
     scanf("%s", nomeRemover);
 
     for (i = 0; i < MAX_ITENS; i++) {
-        if (mochila[i].ativo == 1 && strcmp(mochila[i].nome, nomeRemover) == 0) {
-            mochila[i].ativo = 0; // Libera o slot
-            printf("\nItem '%s' removido com sucesso!\n", nomeRemover);
+        if (mochila[i].ativo && strcmp(mochila[i].nome, nomeRemover) == 0) {
+            mochila[i].ativo = 0;
             encontrado = 1;
+            *ordenadaPorNome = false;
+
+            printf("\nItem '%s' removido!\n", nomeRemover);
             break;
         }
     }
 
-    if (!encontrado) {
-        printf("\nItem não encontrado na mochila.\n");
-    }
+    if (!encontrado)
+        printf("\nItem não encontrado!\n");
 }
 
 // ============================================================================
 // FUNÇÃO: Listar itens
 // ============================================================================
 void listarItens(const Item mochila[]) {
-    int i, vazio = 1;
+    int i;
 
-    printf("\n======= ITENS NA MOCHILA =======\n");
-    printf("%-15s %-12s %-10s\n", "NOME", "TIPO", "QUANTIDADE");
-    printf("----------------------------------------\n");
+    printf("\n================ MOCHILA (Nível Mestre) ================\n");
+    printf("%-12s %-12s %-10s %-10s\n", "NOME", "TIPO", "QTD", "PRIORIDADE");
+    printf("--------------------------------------------------------\n");
 
     for (i = 0; i < MAX_ITENS; i++) {
-        if (mochila[i].ativo == 1) {
-            printf("%-15s %-12s %-10d\n",
+        if (mochila[i].ativo) {
+            printf("%-12s %-12s %-10d %-10d\n",
                    mochila[i].nome,
                    mochila[i].tipo,
-                   mochila[i].quantidade);
-            vazio = 0;
+                   mochila[i].quantidade,
+                   mochila[i].prioridade);
         }
     }
 
-    if (vazio) {
-        printf("Mochila vazia.\n");
-    }
-
-    printf("========================================\n");
+    printf("--------------------------------------------------------\n");
 }
 
 // ============================================================================
-// FUNÇÃO NOVA: Buscar item pelo nome (Busca Sequencial)
+// FUNÇÃO: Comparar dois itens segundo critério
 // ============================================================================
-void buscarItem(const Item mochila[]) {
-    char nomeBusca[30];
-    int i, encontrado = 0;
+bool comparar(const Item *a, const Item *b, CriterioOrdenacao crit) {
+    if (crit == ORDENAR_NOME)
+        return strcmp(a->nome, b->nome) < 0;
 
-    printf("\n--- BUSCAR ITEM ---\n");
-    printf("Digite o nome do item que deseja buscar: ");
+    if (crit == ORDENAR_TIPO)
+        return strcmp(a->tipo, b->tipo) < 0;
+
+    if (crit == ORDENAR_PRIORIDADE)
+        return a->prioridade > b->prioridade;  // prioridade maior vem antes
+
+    return false;
+}
+
+// ============================================================================
+// FUNÇÃO: Insertion Sort com contagem de comparações
+// ============================================================================
+int insertionSort(Item mochila[], CriterioOrdenacao crit) {
+    int i, j;
+    int comparacoes = 0;
+
+    for (i = 1; i < MAX_ITENS; i++) {
+        if (!mochila[i].ativo) continue;
+
+        Item atual = mochila[i];
+        j = i - 1;
+
+        while (j >= 0 && mochila[j].ativo && comparar(&atual, &mochila[j], crit)) {
+            mochila[j + 1] = mochila[j];
+            j--;
+            comparacoes++;
+        }
+
+        mochila[j + 1] = atual;
+    }
+
+    return comparacoes;
+}
+
+// ============================================================================
+// FUNÇÃO: Menu de Ordenação
+// ============================================================================
+void ordenarMochila(Item mochila[], bool *ordenadaPorNome) {
+    int escolha;
+    printf("\n--- ORDENAR MOCHILA ---\n");
+    printf("1 - Ordenar por Nome\n");
+    printf("2 - Ordenar por Tipo\n");
+    printf("3 - Ordenar por Prioridade\n");
+    printf("Escolha: ");
+    scanf("%d", &escolha);
+
+    if (escolha < 1 || escolha > 3) {
+        printf("\nOpção inválida!\n");
+        return;
+    }
+
+    int comparacoes = insertionSort(mochila, escolha);
+
+    printf("\nMochila ordenada!\n");
+    printf("Comparações realizadas: %d\n", comparacoes);
+
+    *ordenadaPorNome = (escolha == ORDENAR_NOME);
+}
+
+// ============================================================================
+// FUNÇÃO: Busca Binária por Nome
+// ============================================================================
+void buscaBinaria(const Item mochila[], bool ordenadaPorNome) {
+    if (!ordenadaPorNome) {
+        printf("\nA mochila NÃO está ordenada por nome!\n");
+        printf("   Antes de buscar, ordene por nome.\n");
+        return;
+    }
+
+    char nomeBusca[30];
+    printf("\n--- BUSCA BINÁRIA ---\n");
+    printf("Nome do item: ");
     scanf("%s", nomeBusca);
 
-    // Busca sequencial
-    for (i = 0; i < MAX_ITENS; i++) {
-        if (mochila[i].ativo == 1 && strcmp(mochila[i].nome, nomeBusca) == 0) {
+    int inicio = 0, fim = MAX_ITENS - 1;
 
-            printf("\nITEM ENCONTRADO!\n");
-            printf("----------------------------------------\n");
-            printf("Nome:       %s\n", mochila[i].nome);
-            printf("Tipo:       %s\n", mochila[i].tipo);
-            printf("Quantidade: %d\n", mochila[i].quantidade);
-            printf("----------------------------------------\n");
+    while (inicio <= fim) {
+        int meio = (inicio + fim) / 2;
 
-            encontrado = 1;
-            break;
+        if (!mochila[meio].ativo) {
+            fim = meio - 1;
+            continue;
         }
+
+        int cmp = strcmp(nomeBusca, mochila[meio].nome);
+
+        if (cmp == 0) {
+            printf("\nITEM ENCONTRADO!\n");
+            printf("-----------------------------\n");
+            printf("Nome: %s\n", mochila[meio].nome);
+            printf("Tipo: %s\n", mochila[meio].tipo);
+            printf("Quantidade: %d\n", mochila[meio].quantidade);
+            printf("Prioridade: %d\n", mochila[meio].prioridade);
+            printf("-----------------------------\n");
+            return;
+        }
+        else if (cmp > 0)
+            inicio = meio + 1;
+        else
+            fim = meio - 1;
     }
 
-    if (!encontrado) {
-        printf("\nNenhum item com esse nome foi encontrado.\n");
-    }
+    printf("\nItem não encontrado!\n");
 }
 
 // ============================================================================
-// FUNÇÃO PRINCIPAL – MENU DO SISTEMA
+// FUNÇÃO PRINCIPAL
 // ============================================================================
 int main() {
 
-    setlocale(LC_ALL, "pt_BR.UTF-8");
-    Item mochila[MAX_ITENS] = {0};  // Inicializa todos os itens como inativos
+    setlocale(LC_ALL,"Portuguese_Brazil");
+    Item mochila[MAX_ITENS] = {0};
+    bool ordenadaPorNome = false;
     int opcao;
 
     do {
-        printf("\n===== MENU DA MOCHILA (Aventureiro) =====\n");
+        printf("\n=========== MENU NÍVEL MESTRE ===========\n");
         printf("1 - Adicionar item\n");
         printf("2 - Remover item\n");
         printf("3 - Listar itens\n");
-        printf("4 - Buscar item por nome\n");  // NOVO
+        printf("4 - Ordenar mochila\n");
+        printf("5 - Busca binária por nome\n");
         printf("0 - Sair\n");
         printf("Escolha: ");
         scanf("%d", &opcao);
 
         switch (opcao) {
-
         case 1:
-            adicionarItem(mochila);
+            adicionarItem(mochila, &ordenadaPorNome);
             break;
 
         case 2:
-            removerItem(mochila);
+            removerItem(mochila, &ordenadaPorNome);
             break;
 
         case 3:
@@ -162,15 +257,19 @@ int main() {
             break;
 
         case 4:
-            buscarItem(mochila);
+            ordenarMochila(mochila, &ordenadaPorNome);
+            break;
+
+        case 5:
+            buscaBinaria(mochila, ordenadaPorNome);
             break;
 
         case 0:
-            printf("\nSaindo do sistema...\n");
+            printf("\nSaindo...\n");
             break;
 
         default:
-            printf("\nOpção inválida! Tente novamente.\n");
+            printf("\nOpção inválida!\n");
         }
 
     } while (opcao != 0);
